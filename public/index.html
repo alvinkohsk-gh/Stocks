@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stokc — Gainers/Losers &amp; Short Lending</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">Stokc</span>
+      <span class="brand-sub">Finviz movers × simulated IBKR short lending</span>
+    </div>
+    <div class="topbar-actions">
+      <span id="updatedAt" class="updated-at">—</span>
+      <button id="refreshBtn" class="btn">Refresh</button>
+    </div>
+  </header>
+
+  <div class="disclaimer">
+    ⚠️ Gainers/losers are scraped live from Finviz. Short-lending figures (fee rate, shares available, borrow
+    status) are <strong>simulated</strong> — Interactive Brokers' real short availability requires an authenticated
+    brokerage session and is not publicly queryable. Do not trade on these numbers.
+  </div>
+
+  <main>
+    <section class="summary-grid" id="summaryGrid"></section>
+
+    <section class="squeeze-section" id="squeezeSection" hidden>
+      <h2>Potential Squeeze Watch</h2>
+      <p class="muted">Big movers that are also Very Hard to Borrow or unavailable to short.</p>
+      <div class="squeeze-cards" id="squeezeCards"></div>
+    </section>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="gainers">Top Gainers</button>
+      <button class="tab" data-tab="losers">Top Losers</button>
+    </nav>
+
+    <section id="tableSection">
+      <div class="table-wrap">
+        <table id="moversTable">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Company</th>
+              <th>Sector</th>
+              <th class="num">Price</th>
+              <th class="num">Change %</th>
+              <th class="num">Volume</th>
+              <th>Borrow Status</th>
+              <th class="num">Fee Rate</th>
+              <th class="num">Shares Available</th>
+            </tr>
+          </thead>
+          <tbody id="moversBody">
+            <tr><td colspan="9" class="loading">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Data: Finviz (live scrape) + simulated IBKR short-lending model. For informational purposes only.</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

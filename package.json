@@ -1,0 +1,17 @@
+{
+  "name": "stokc",
+  "version": "1.0.0",
+  "description": "Daily Finviz gainers/losers scan with a simulated Interactive Brokers short-lending availability summary",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "express": "^4.19.2"
+  }
+}
