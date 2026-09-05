@@ -80,6 +80,11 @@ app.get('/api/summary', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`stokc running on http://localhost:${PORT}`);
-});
+const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
+if (isMain) {
+  app.listen(PORT, () => {
+    console.log(`stokc running on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
