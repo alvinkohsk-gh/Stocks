@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Stokc — Gainers/Losers &amp; Short Lending</title>
+  <title>Stokc — Gainers/Losers/Volatile &amp; Short Lending</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -19,7 +19,7 @@
   </header>
 
   <div class="disclaimer">
-    ⚠️ Gainers/losers are scraped live from Finviz. Short-lending figures (fee rate, shares available, borrow
+    ⚠️ Gainers/losers/most-volatile are scraped live from Finviz. Short-lending figures (fee rate, shares available, borrow
     status) are <strong>simulated</strong> — Interactive Brokers' real short availability requires an authenticated
     brokerage session and is not publicly queryable. Do not trade on these numbers.
   </div>
@@ -36,6 +36,7 @@
     <nav class="tabs">
       <button class="tab active" data-tab="gainers">Top Gainers</button>
       <button class="tab" data-tab="losers">Top Losers</button>
+      <button class="tab" data-tab="volatile">Most Volatile</button>
     </nav>
 
     <section id="tableSection">

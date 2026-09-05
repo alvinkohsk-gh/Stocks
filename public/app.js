@@ -54,20 +54,27 @@ async function loadSummary() {
 
 function render() {
   if (!state.summary) return;
-  const { gainers, losers, updatedAt } = state.summary;
+  const { gainers, losers, volatile, updatedAt } = state.summary;
 
   els.updatedAt.textContent = `Updated ${new Date(updatedAt).toLocaleTimeString()}`;
 
   els.summaryGrid.innerHTML = `
     ${statCard('Gainers Scanned', gainers.count)}
     ${statCard('Losers Scanned', losers.count)}
+    ${statCard('Most Volatile Scanned', volatile.count)}
     ${statCard('Hard-to-Borrow (Gainers)', gainers.hardToBorrowCount)}
     ${statCard('Hard-to-Borrow (Losers)', losers.hardToBorrowCount)}
+    ${statCard('Hard-to-Borrow (Volatile)', volatile.hardToBorrowCount)}
     ${statCard('Avg Borrow Fee — Gainers', gainers.avgFeeRatePct != null ? `${gainers.avgFeeRatePct}%` : '—')}
     ${statCard('Avg Borrow Fee — Losers', losers.avgFeeRatePct != null ? `${losers.avgFeeRatePct}%` : '—')}
+    ${statCard('Avg Borrow Fee — Volatile', volatile.avgFeeRatePct != null ? `${volatile.avgFeeRatePct}%` : '—')}
   `;
 
-  const squeezeCandidates = [...gainers.squeezeCandidates, ...losers.squeezeCandidates];
+  const squeezeCandidates = dedupeByTicker([
+    ...gainers.squeezeCandidates,
+    ...losers.squeezeCandidates,
+    ...volatile.squeezeCandidates,
+  ]);
   if (squeezeCandidates.length) {
     els.squeezeSection.hidden = false;
     els.squeezeCards.innerHTML = squeezeCandidates
@@ -85,6 +92,11 @@ function render() {
   }
 
   renderTable();
+}
+
+function dedupeByTicker(movers) {
+  const seen = new Set();
+  return movers.filter((m) => (seen.has(m.ticker) ? false : (seen.add(m.ticker), true)));
 }
 
 function statCard(label, value) {

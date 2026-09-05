@@ -51,8 +51,8 @@ app.use(express.json());
 
 app.get('/api/movers/:type', async (req, res) => {
   const { type } = req.params;
-  if (!['gainers', 'losers'].includes(type)) {
-    return res.status(400).json({ error: 'type must be "gainers" or "losers"' });
+  if (!['gainers', 'losers', 'volatile'].includes(type)) {
+    return res.status(400).json({ error: 'type must be "gainers", "losers", or "volatile"' });
   }
   try {
     const movers = await getMoversCached(type);
@@ -64,14 +64,16 @@ app.get('/api/movers/:type', async (req, res) => {
 
 app.get('/api/summary', async (req, res) => {
   try {
-    const [gainers, losers] = await Promise.all([
+    const [gainers, losers, volatile] = await Promise.all([
       getMoversCached('gainers'),
       getMoversCached('losers'),
+      getMoversCached('volatile'),
     ]);
     res.json({
       updatedAt: new Date().toISOString(),
       gainers: summarize(gainers),
       losers: summarize(losers),
+      volatile: summarize(volatile),
     });
   } catch (err) {
     res.status(502).json({ error: 'Failed to build summary', detail: err.message });

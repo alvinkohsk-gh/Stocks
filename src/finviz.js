@@ -9,6 +9,7 @@ const REQUEST_HEADERS = {
 const SCREENER_URLS = {
   gainers: 'https://finviz.com/screener.ashx?v=111&s=ta_topgainers',
   losers: 'https://finviz.com/screener.ashx?v=111&s=ta_toplosers',
+  volatile: 'https://finviz.com/screener.ashx?v=111&s=ta_mostvolatile',
 };
 
 export async function fetchMovers(type) {

@@ -1,13 +1,15 @@
 # Stokc
 
-Daily dashboard of Finviz's biggest stock gainers and losers, paired with a
-short-sale lending summary modeled on Interactive Brokers' borrow
-availability metrics (fee rate, shares available, borrow status).
+Daily dashboard consolidating the US market's biggest stock gainers, losers,
+and most volatile names from Finviz, paired with a short-sale lending
+summary modeled on Interactive Brokers' borrow availability metrics (fee
+rate, shares available, borrow status).
 
 ## What it does
 
 - Scrapes [Finviz](https://finviz.com)'s public screener for the day's Top
-  Gainers and Top Losers (`ta_topgainers` / `ta_toplosers` views).
+  Gainers, Top Losers, and Most Volatile stocks (`ta_topgainers` /
+  `ta_toplosers` / `ta_mostvolatile` views).
 - For each ticker, attaches a short-lending summary: borrow status (Easy /
   Hard / Very Hard to Borrow / Not Available), annualized fee rate, and
   shares available.
@@ -57,10 +59,10 @@ User-Agents, or switching to an official data provider.
 
 ## API
 
-- `GET /api/movers/:type` — `type` is `gainers` or `losers`. Returns the
-  mover list enriched with lending data plus summary stats.
-- `GET /api/summary` — both gainers and losers in one response, as used by
-  the dashboard.
+- `GET /api/movers/:type` — `type` is `gainers`, `losers`, or `volatile`.
+  Returns the mover list enriched with lending data plus summary stats.
+- `GET /api/summary` — gainers, losers, and most-volatile in one response,
+  as used by the dashboard.
 
 ## Deployment
 
