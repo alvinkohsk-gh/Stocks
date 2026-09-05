@@ -10,7 +10,7 @@
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark">Stokc</span>
-      <span class="brand-sub">Finviz movers × simulated IBKR short lending</span>
+      <span class="brand-sub">Alpha Vantage movers × simulated IBKR short lending</span>
     </div>
     <div class="topbar-actions">
       <span id="updatedAt" class="updated-at">—</span>
@@ -19,9 +19,11 @@
   </header>
 
   <div class="disclaimer">
-    ⚠️ Gainers/losers/most-volatile are scraped live from Finviz. Short-lending figures (fee rate, shares available, borrow
-    status) are <strong>simulated</strong> — Interactive Brokers' real short availability requires an authenticated
-    brokerage session and is not publicly queryable. Do not trade on these numbers.
+    ⚠️ Gainers/losers are live from Alpha Vantage. "Most Volatile" is derived as the largest absolute movers
+    (gainers + losers combined) since the free API doesn't expose intraday high/low. Short-lending figures (fee
+    rate, shares available, borrow status) are <strong>simulated</strong> — Interactive Brokers' real short
+    availability requires an authenticated brokerage session and is not publicly queryable. Do not trade on
+    these numbers.
   </div>
 
   <main>
@@ -45,8 +47,6 @@
           <thead>
             <tr>
               <th>Ticker</th>
-              <th>Company</th>
-              <th>Sector</th>
               <th class="num">Price</th>
               <th class="num">Change %</th>
               <th class="num">Volume</th>
@@ -56,7 +56,7 @@
             </tr>
           </thead>
           <tbody id="moversBody">
-            <tr><td colspan="9" class="loading">Loading…</td></tr>
+            <tr><td colspan="7" class="loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -64,7 +64,7 @@
   </main>
 
   <footer>
-    <span>Data: Finviz (live scrape) + simulated IBKR short-lending model. For informational purposes only.</span>
+    <span>Data: Alpha Vantage (live) + simulated IBKR short-lending model. For informational purposes only.</span>
   </footer>
 
   <script src="app.js"></script>

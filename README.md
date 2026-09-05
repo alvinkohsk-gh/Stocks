@@ -1,22 +1,44 @@
 # Stokc
 
 Daily dashboard consolidating the US market's biggest stock gainers, losers,
-and most volatile names from Finviz, paired with a short-sale lending
+and most volatile names from Alpha Vantage, paired with a short-sale lending
 summary modeled on Interactive Brokers' borrow availability metrics (fee
 rate, shares available, borrow status).
 
 ## What it does
 
-- Scrapes [Finviz](https://finviz.com)'s public screener for the day's Top
-  Gainers, Top Losers, and Most Volatile stocks (`ta_topgainers` /
-  `ta_toplosers` / `ta_mostvolatile` views).
+- Fetches the day's Top Gainers and Top Losers from Alpha Vantage's
+  [`TOP_GAINERS_LOSERS`](https://www.alphavantage.co/documentation/#top-gainer-losers)
+  endpoint.
+- Derives a "Most Volatile" list from the same data: the biggest absolute
+  movers across gainers and losers combined. Alpha Vantage's free tier
+  doesn't expose intraday high/low, so this is a proxy for true volatility
+  (e.g. ATR), not an intraday-range calculation.
 - For each ticker, attaches a short-lending summary: borrow status (Easy /
   Hard / Very Hard to Borrow / Not Available), annualized fee rate, and
   shares available.
 - Surfaces a "Squeeze Watch" list: big movers that are also very hard or
   impossible to borrow — the combination that tends to precede short
   squeezes.
-- Caches Finviz responses for 5 minutes to avoid hammering the site.
+- Caches the Alpha Vantage response (1 hour by default) since the free tier
+  is capped at 25 requests/day — see below.
+
+## Alpha Vantage API key
+
+Get a free key at https://www.alphavantage.co/support/#api-key (instant,
+no signup fee) and set it as an environment variable:
+
+```bash
+export ALPHA_VANTAGE_API_KEY=your_key_here
+```
+
+On Vercel, add it under Project Settings → Environment Variables.
+
+**Free tier rate limit:** 25 requests/day. One cached fetch feeds all three
+views (gainers/losers/volatile), so the app makes at most one Alpha Vantage
+call per cache window regardless of how many users hit it. The cache TTL
+defaults to 60 minutes (safely under the daily quota); override it with
+`ALPHA_VANTAGE_CACHE_MINUTES` if you have a paid plan with a higher limit.
 
 ## Important: the lending data is simulated
 
@@ -38,24 +60,11 @@ authenticated gateway.
 
 ```bash
 npm install
+export ALPHA_VANTAGE_API_KEY=your_key_here
 npm start
 ```
 
 Then open http://localhost:3000.
-
-## Notes on the Finviz scraper
-
-Finviz periodically changes its screener page's CSS classes. `src/finviz.js`
-avoids depending on class names: it finds the results table by locating the
-header row that contains both a "Ticker" and "Price" column label, then
-reads each row positionally. If Finviz overhauls its markup enough that no
-row contains those labels, the scraper will throw a clear error rather than
-silently returning garbage — check `src/finviz.js` first if `/api/movers/*`
-starts failing.
-
-Scraping is done with a normal desktop User-Agent header. If Finviz starts
-blocking requests (403s), consider adding request delays, rotating
-User-Agents, or switching to an official data provider.
 
 ## API
 
@@ -66,13 +75,12 @@ User-Agents, or switching to an official data provider.
 
 ## Deployment
 
-This is a plain Node/Express app (not a static site) because it needs
-server-side fetch access to Finviz. Deploy it anywhere that runs a
-long-lived Node process (Render, Railway, Fly.io, a VPS, etc.) with:
+The app runs both as a normal long-lived Node/Express process (`npm start`)
+and as a Vercel serverless function via `api/index.js` (routed through
+`vercel.json`). Static assets in `public/` are served automatically by
+Vercel's default static hosting; `/api/*` requests are routed to the
+serverless function.
 
-```bash
-npm install
-npm start
-```
-
-Set `PORT` if your host requires a specific port.
+Set `ALPHA_VANTAGE_API_KEY` (required) and optionally
+`ALPHA_VANTAGE_CACHE_MINUTES` and `PORT` as environment variables wherever
+you deploy.

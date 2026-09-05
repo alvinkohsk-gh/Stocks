@@ -45,7 +45,7 @@ async function loadSummary() {
     state.summary = await res.json();
     render();
   } catch (err) {
-    els.moversBody.innerHTML = `<tr><td colspan="9" class="empty">Failed to load data: ${escapeHtml(err.message)}</td></tr>`;
+    els.moversBody.innerHTML = `<tr><td colspan="7" class="empty">Failed to load data: ${escapeHtml(err.message)}</td></tr>`;
   } finally {
     els.refreshBtn.disabled = false;
     els.refreshBtn.textContent = 'Refresh';
@@ -82,7 +82,6 @@ function render() {
         (m) => `
       <div class="squeeze-card">
         <div class="ticker">${escapeHtml(m.ticker)} <span class="${m.changePct >= 0 ? 'change-pos' : 'change-neg'}">${fmtPct(m.changePct)}</span></div>
-        <div class="meta">${escapeHtml(m.company || '')}</div>
         <div class="meta">${m.lending.category} · ${m.lending.feeRatePct != null ? m.lending.feeRatePct + '% fee' : 'no borrow'} · ${fmtNum(m.lending.availableShares)} shares</div>
       </div>`
       )
@@ -106,7 +105,7 @@ function statCard(label, value) {
 function renderTable() {
   const data = state.summary?.[state.activeTab];
   if (!data || !data.results.length) {
-    els.moversBody.innerHTML = `<tr><td colspan="9" class="empty">No data available.</td></tr>`;
+    els.moversBody.innerHTML = `<tr><td colspan="7" class="empty">No data available.</td></tr>`;
     return;
   }
 
@@ -117,8 +116,6 @@ function renderTable() {
       return `
       <tr>
         <td class="ticker-cell">${escapeHtml(m.ticker)}</td>
-        <td>${escapeHtml(m.company || '—')}</td>
-        <td>${escapeHtml(m.sector || '—')}</td>
         <td class="num">${fmtMoney(m.price)}</td>
         <td class="num ${changeClass}">${fmtPct(m.changePct)}</td>
         <td class="num">${fmtNum(m.volume)}</td>

@@ -1,23 +1,25 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { fetchMovers } from './src/finviz.js';
+import { fetchTopMovers } from './src/alphaVantage.js';
 import { getMockLending } from './src/lending.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const cache = new Map();
+// Alpha Vantage's free tier caps at 25 requests/day. One cached fetch feeds
+// all three views (gainers/losers/volatile), so keep the TTL long enough
+// that sustained traffic can't burn through the daily quota.
+const CACHE_TTL_MS = (Number(process.env.ALPHA_VANTAGE_CACHE_MINUTES) || 60) * 60 * 1000;
+let cache = null;
 
-async function getMoversCached(type) {
-  const cached = cache.get(type);
-  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
-    return cached.data;
+async function getMoversCached() {
+  if (cache && Date.now() - cache.ts < CACHE_TTL_MS) {
+    return cache.data;
   }
-  const data = await fetchMovers(type);
-  cache.set(type, { data, ts: Date.now() });
+  const data = await fetchTopMovers();
+  cache = { data, ts: Date.now() };
   return data;
 }
 
@@ -55,25 +57,21 @@ app.get('/api/movers/:type', async (req, res) => {
     return res.status(400).json({ error: 'type must be "gainers", "losers", or "volatile"' });
   }
   try {
-    const movers = await getMoversCached(type);
-    res.json({ type, updatedAt: new Date().toISOString(), ...summarize(movers) });
+    const movers = await getMoversCached();
+    res.json({ type, updatedAt: new Date().toISOString(), ...summarize(movers[type]) });
   } catch (err) {
-    res.status(502).json({ error: 'Failed to fetch data from Finviz', detail: err.message });
+    res.status(502).json({ error: 'Failed to fetch data from Alpha Vantage', detail: err.message });
   }
 });
 
 app.get('/api/summary', async (req, res) => {
   try {
-    const [gainers, losers, volatile] = await Promise.all([
-      getMoversCached('gainers'),
-      getMoversCached('losers'),
-      getMoversCached('volatile'),
-    ]);
+    const movers = await getMoversCached();
     res.json({
       updatedAt: new Date().toISOString(),
-      gainers: summarize(gainers),
-      losers: summarize(losers),
-      volatile: summarize(volatile),
+      gainers: summarize(movers.gainers),
+      losers: summarize(movers.losers),
+      volatile: summarize(movers.volatile),
     });
   } catch (err) {
     res.status(502).json({ error: 'Failed to build summary', detail: err.message });
