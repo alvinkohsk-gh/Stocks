@@ -31,6 +31,10 @@
         <h2>Live Watchlist</h2>
         <span class="muted">Prices refresh every few seconds automatically</span>
       </div>
+      <div id="storageWarning" class="storage-warning" hidden>
+        ⚠️ Your browser is blocking local storage (common in private/incognito windows or with strict privacy
+        settings), so this watchlist won't be saved after you leave or refresh the page.
+      </div>
       <form id="watchlistForm" class="watchlist-form" autocomplete="off">
         <input id="symbolInput" type="text" placeholder="Search symbol or company (e.g. AAPL)" />
         <button type="submit" class="btn">Add</button>

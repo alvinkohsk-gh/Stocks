@@ -17,11 +17,30 @@ const els = {
   symbolInput: document.getElementById('symbolInput'),
   searchResults: document.getElementById('searchResults'),
   watchlistBody: document.getElementById('watchlistBody'),
+  storageWarning: document.getElementById('storageWarning'),
 };
 
 const WATCHLIST_STORAGE_KEY = 'stokc.watchlist';
 
+// Some browsers (private/incognito windows, strict cookie/storage settings)
+// throw on localStorage access instead of just failing quietly. Detect that
+// up front so we can warn instead of silently losing the watchlist on the
+// next page load.
+function checkStorageAvailable() {
+  try {
+    const testKey = '__stokc_storage_test__';
+    localStorage.setItem(testKey, '1');
+    localStorage.removeItem(testKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const storageAvailable = checkStorageAvailable();
+
 function loadWatchlist() {
+  if (!storageAvailable) return [];
   try {
     const raw = localStorage.getItem(WATCHLIST_STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -31,10 +50,11 @@ function loadWatchlist() {
 }
 
 function saveWatchlist() {
+  if (!storageAvailable) return;
   try {
     localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(state.watchlist));
   } catch {
-    // ignore storage failures (private browsing, quota, etc.)
+    // ignore storage failures (quota exceeded, etc.)
   }
 }
 
@@ -291,5 +311,6 @@ els.tabs.forEach((tab) => {
 els.refreshBtn.addEventListener('click', loadSummary);
 
 loadSummary();
+els.storageWarning.hidden = storageAvailable;
 renderWatchlist();
 state.watchlist.forEach(startPolling);

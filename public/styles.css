@@ -122,6 +122,16 @@ main {
   border-color: var(--accent);
 }
 
+.storage-warning {
+  background: #26210f;
+  border: 1px solid #4a3f16;
+  color: #e8cf7a;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  margin-bottom: 10px;
+}
+
 .search-results {
   background: var(--panel-alt);
   border: 1px solid var(--border);
