@@ -1,62 +1,22 @@
-// Relays live trade ticks from Finnhub's WebSocket API to browser clients.
+// Relays live-ish price updates to browser clients.
 //
-// One upstream connection to Finnhub is shared across all browser clients;
-// we track which symbols each client wants and keep a refcount so we only
-// subscribe/unsubscribe from Finnhub when the last/first client for a
-// symbol leaves/joins. Ticks are forwarded to browsers as soon as they
-// arrive — no polling delay.
+// Yahoo Finance's keyless endpoints don't offer a public trade WebSocket,
+// so instead of proxying an upstream stream we poll `getQuote` per watched
+// symbol on a short interval and push updates to browsers over our own
+// WebSocket as soon as they arrive — no client has to poll itself, and we
+// only ever make one upstream request per symbol per interval no matter
+// how many browsers are watching it.
 
-import WebSocket from 'ws';
-import { FINNHUB_WS_URL, hasFinnhubKey } from './finnhub.js';
+import { getQuote } from './yahoo.js';
 
-const RECONNECT_DELAY_MS = 3000;
+const POLL_INTERVAL_MS = 5000;
 
 export class LiveFeed {
   constructor() {
-    this.upstream = null;
     this.subscriberCounts = new Map(); // symbol -> count of watching clients
+    this.pollers = new Map(); // symbol -> interval handle
     this.clients = new Set(); // browser WebSocket connections
     this.clientSymbols = new Map(); // client -> Set(symbol)
-    this.enabled = hasFinnhubKey();
-    if (this.enabled) this.connectUpstream();
-  }
-
-  connectUpstream() {
-    const ws = new WebSocket(FINNHUB_WS_URL(process.env.FINNHUB_API_KEY));
-    this.upstream = ws;
-
-    ws.on('open', () => {
-      for (const symbol of this.subscriberCounts.keys()) {
-        ws.send(JSON.stringify({ type: 'subscribe', symbol }));
-      }
-    });
-
-    ws.on('message', (raw) => {
-      let msg;
-      try {
-        msg = JSON.parse(raw.toString());
-      } catch {
-        return;
-      }
-      if (msg.type !== 'trade' || !Array.isArray(msg.data)) return;
-      for (const trade of msg.data) {
-        this.broadcast(trade.s, {
-          type: 'tick',
-          symbol: trade.s,
-          price: trade.p,
-          volume: trade.v,
-          ts: trade.t,
-        });
-      }
-    });
-
-    ws.on('close', () => {
-      if (this.enabled) setTimeout(() => this.connectUpstream(), RECONNECT_DELAY_MS);
-    });
-
-    ws.on('error', () => {
-      ws.close();
-    });
   }
 
   broadcast(symbol, payload) {
@@ -91,19 +51,13 @@ export class LiveFeed {
   }
 
   subscribeClient(ws, symbol) {
-    if (!this.enabled) {
-      ws.send(JSON.stringify({ type: 'error', message: 'Live feed unavailable: FINNHUB_API_KEY not set' }));
-      return;
-    }
     const symbols = this.clientSymbols.get(ws);
     if (!symbols || symbols.has(symbol)) return;
     symbols.add(symbol);
 
     const count = this.subscriberCounts.get(symbol) || 0;
     this.subscriberCounts.set(symbol, count + 1);
-    if (count === 0 && this.upstream?.readyState === this.upstream?.OPEN) {
-      this.upstream.send(JSON.stringify({ type: 'subscribe', symbol }));
-    }
+    if (count === 0) this.startPolling(symbol);
   }
 
   unsubscribeClient(ws, symbol) {
@@ -117,12 +71,38 @@ export class LiveFeed {
     const count = this.subscriberCounts.get(symbol) || 0;
     if (count <= 1) {
       this.subscriberCounts.delete(symbol);
-      if (this.upstream?.readyState === this.upstream?.OPEN) {
-        this.upstream.send(JSON.stringify({ type: 'unsubscribe', symbol }));
-      }
+      this.stopPolling(symbol);
     } else {
       this.subscriberCounts.set(symbol, count - 1);
     }
+  }
+
+  startPolling(symbol) {
+    const poll = async () => {
+      try {
+        const quote = await getQuote(symbol);
+        if (quote) {
+          this.broadcast(symbol, {
+            type: 'tick',
+            symbol,
+            price: quote.price,
+            change: quote.change,
+            changePct: quote.changePct,
+            ts: Date.now(),
+          });
+        }
+      } catch {
+        // transient upstream error; next poll will retry
+      }
+    };
+    poll();
+    this.pollers.set(symbol, setInterval(poll, POLL_INTERVAL_MS));
+  }
+
+  stopPolling(symbol) {
+    const handle = this.pollers.get(symbol);
+    if (handle) clearInterval(handle);
+    this.pollers.delete(symbol);
   }
 
   removeClient(ws) {

@@ -1,45 +1,49 @@
 # Stokc
 
-Stock monitoring dashboard: a live watchlist streamed over WebSocket from
-Finnhub's real-time trade feed, plus a daily scan of Finviz's biggest
-gainers/losers (with prices refreshed from the same live quote API) paired
-with a short-sale lending summary modeled on Interactive Brokers' borrow
+Stock monitoring dashboard: a live watchlist that updates every few seconds
+over WebSocket, plus a scan of today's biggest gainers/losers, all powered
+by Yahoo Finance's public (no account, no API key) endpoints — paired with
+a short-sale lending summary modeled on Interactive Brokers' borrow
 availability metrics.
 
 ## What it does
 
-- **Live watchlist**: search for any US-listed symbol, add it to your
-  watchlist, and see its price tick in real time as trades happen —
-  streamed server-side from [Finnhub](https://finnhub.io)'s WebSocket trade
-  feed and pushed to the browser over its own WebSocket. No polling delay.
-- Scrapes [Finviz](https://finviz.com)'s public screener to discover the
-  day's Top Gainers and Top Losers (`ta_topgainers` / `ta_toplosers`
-  views), then overlays live Finnhub quotes on top so the price/% change
-  shown is accurate to the last live trade rather than Finviz's own cache.
+- **Live watchlist**: search for any symbol, add it to your watchlist, and
+  watch its price update in real time. The server polls Yahoo Finance every
+  ~5 seconds per watched symbol and pushes updates to the browser over its
+  own WebSocket (`/ws`) — the browser never polls itself.
+- Pulls the day's Top Gainers and Top Losers from Yahoo Finance's
+  `day_gainers` / `day_losers` predefined screener — the same data backing
+  finance.yahoo.com's own movers pages.
 - For each ticker, attaches a short-lending summary: borrow status (Easy /
   Hard / Very Hard to Borrow / Not Available), annualized fee rate, and
   shares available.
 - Surfaces a "Squeeze Watch" list: big movers that are also very hard or
   impossible to borrow — the combination that tends to precede short
   squeezes.
-- Caches the Finviz-derived ticker list for 5 minutes (that list barely
-  changes minute to minute); live prices are never cached.
+- Caches the movers list for 30 seconds to avoid hammering the endpoint on
+  rapid dashboard refreshes; watchlist quotes are polled fresh continuously.
 
-## Live market data (Finnhub)
+## Live market data (no account needed)
 
-Set `FINNHUB_API_KEY` to enable real-time quotes, symbol search, and the
-live watchlist feed. Get a free key at https://finnhub.io/register (free
-tier covers US equities real-time quotes + trade WebSocket, with rate
-limits).
+This app uses Yahoo Finance's unofficial public endpoints
+(`query1.finance.yahoo.com`), which require no signup, no API key, and no
+account — just run it:
 
 ```bash
-export FINNHUB_API_KEY=your_key_here
+npm install
 npm start
 ```
 
-Without a key, the app still runs: mover tickers/prices fall back to
-Finviz's own screener data, and the watchlist/search endpoints return a 503
-explaining that live quotes aren't configured.
+**Caveats of going keyless:** these endpoints aren't officially documented
+or guaranteed stable, prices can lag the real tape by anywhere from a few
+seconds to ~15–20 minutes depending on the exchange/feed, and Yahoo can
+rate-limit or block an IP that polls too aggressively. If you need
+guaranteed real-time data or hit reliability problems, swap `src/yahoo.js`
+for a registered provider (Finnhub, Alpha Vantage, Polygon.io, IEX Cloud,
+etc. all offer free tiers with an API key) — the rest of the app (caching,
+the watchlist WebSocket relay, the UI) doesn't need to change, only the
+`getQuote` / `getMovers` / `symbolLookup` implementations.
 
 ## Important: the lending data is simulated
 
@@ -66,41 +70,26 @@ npm start
 
 Then open http://localhost:3000.
 
-## Notes on the Finviz scraper
-
-Finviz periodically changes its screener page's CSS classes. `src/finviz.js`
-avoids depending on class names: it finds the results table by locating the
-header row that contains both a "Ticker" and "Price" column label, then
-reads each row positionally. If Finviz overhauls its markup enough that no
-row contains those labels, the scraper will throw a clear error rather than
-silently returning garbage — check `src/finviz.js` first if `/api/movers/*`
-starts failing.
-
-Scraping is done with a normal desktop User-Agent header. If Finviz starts
-blocking requests (403s), consider adding request delays, rotating
-User-Agents, or switching to an official data provider.
-
 ## API
 
 - `GET /api/movers/:type` — `type` is `gainers` or `losers`. Returns the
   mover list enriched with lending data plus summary stats.
 - `GET /api/summary` — both gainers and losers in one response, as used by
   the dashboard.
-- `GET /api/quote/:symbol` — live Finnhub quote for any symbol (503 if
-  `FINNHUB_API_KEY` isn't set).
+- `GET /api/quote/:symbol` — live quote for any symbol.
 - `GET /api/search?q=` — symbol/company search for the watchlist's add box.
-- `GET /api/status` — whether live quotes are enabled.
-- `WS /ws` — subscribe to live trade ticks: send
+- `WS /ws` — subscribe to live price updates: send
   `{"type":"subscribe","symbol":"AAPL"}`, receive
-  `{"type":"tick","symbol":"AAPL","price":...,"volume":...,"ts":...}`
-  messages as trades happen. Send `{"type":"unsubscribe","symbol":"AAPL"}`
-  to stop.
+  `{"type":"tick","symbol":"AAPL","price":...,"change":...,"changePct":...,"ts":...}`
+  messages roughly every 5 seconds while subscribed. Send
+  `{"type":"unsubscribe","symbol":"AAPL"}` to stop.
 
 ## Deployment
 
 This is a plain Node/Express app (not a static site) because it needs
-server-side fetch access to Finviz. Deploy it anywhere that runs a
-long-lived Node process (Render, Railway, Fly.io, a VPS, etc.) with:
+server-side fetch access to Yahoo Finance and a long-lived process for the
+WebSocket relay. Deploy it anywhere that runs a long-lived Node process
+(Render, Railway, Fly.io, a VPS, etc.) with:
 
 ```bash
 npm install

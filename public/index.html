@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Stokc — Gainers/Losers &amp; Short Lending</title>
+  <title>Stokc — Live Movers &amp; Watchlist</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark">Stokc</span>
-      <span class="brand-sub">Finviz movers × simulated IBKR short lending</span>
+      <span class="brand-sub">Live Yahoo Finance quotes × simulated IBKR short lending</span>
     </div>
     <div class="topbar-actions">
       <span id="updatedAt" class="updated-at">—</span>
@@ -19,17 +19,17 @@
   </header>
 
   <div class="disclaimer">
-    ⚠️ Mover tickers are discovered from Finviz's screener; prices/% change come from a live quote feed when
-    configured (see <span id="liveStatus">status</span>). Short-lending figures (fee rate, shares available, borrow
-    status) are <strong>simulated</strong> — Interactive Brokers' real short availability requires an authenticated
-    brokerage session and is not publicly queryable. Do not trade on these numbers.
+    ⚠️ Movers and quotes come live from Yahoo Finance's public endpoints (no account/API key required — see
+    README for details and caveats). Short-lending figures (fee rate, shares available, borrow status) are
+    <strong>simulated</strong> — Interactive Brokers' real short availability requires an authenticated brokerage
+    session and is not publicly queryable. Do not trade on these numbers.
   </div>
 
   <main>
     <section class="watchlist-section">
       <div class="watchlist-header">
         <h2>Live Watchlist</h2>
-        <span class="muted">Real-time trade ticks streamed over WebSocket</span>
+        <span class="muted">Prices refresh every few seconds, pushed to your browser over WebSocket</span>
       </div>
       <form id="watchlistForm" class="watchlist-form" autocomplete="off">
         <input id="symbolInput" type="text" placeholder="Search symbol or company (e.g. AAPL)" />
@@ -92,7 +92,7 @@
   </main>
 
   <footer>
-    <span>Data: Finviz (live scrape) + simulated IBKR short-lending model. For informational purposes only.</span>
+    <span>Data: Yahoo Finance (live, keyless) + simulated IBKR short-lending model. For informational purposes only.</span>
   </footer>
 
   <script src="app.js"></script>

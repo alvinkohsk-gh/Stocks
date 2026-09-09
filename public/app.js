@@ -13,7 +13,6 @@ const els = {
   updatedAt: document.getElementById('updatedAt'),
   refreshBtn: document.getElementById('refreshBtn'),
   tabs: document.querySelectorAll('.tab'),
-  liveStatus: document.getElementById('liveStatus'),
   watchlistForm: document.getElementById('watchlistForm'),
   symbolInput: document.getElementById('symbolInput'),
   searchResults: document.getElementById('searchResults'),
@@ -154,7 +153,7 @@ function escapeHtml(str) {
   }[c]));
 }
 
-// --- Live watchlist (WebSocket trade ticks) ---
+// --- Live watchlist (server polls Yahoo Finance, pushes over WebSocket) ---
 
 let ws = null;
 let wsReconnectTimer = null;
@@ -305,18 +304,6 @@ els.watchlistForm.addEventListener('submit', (e) => {
   els.searchResults.hidden = true;
 });
 
-async function loadStatus() {
-  try {
-    const res = await fetch('/api/status');
-    const { liveQuotes } = await res.json();
-    els.liveStatus.textContent = liveQuotes
-      ? 'live Finnhub quotes enabled'
-      : 'live quotes disabled — set FINNHUB_API_KEY to enable';
-  } catch {
-    els.liveStatus.textContent = 'unknown';
-  }
-}
-
 els.tabs.forEach((tab) => {
   tab.addEventListener('click', () => {
     els.tabs.forEach((t) => t.classList.remove('active'));
@@ -329,7 +316,6 @@ els.tabs.forEach((tab) => {
 els.refreshBtn.addEventListener('click', loadSummary);
 
 loadSummary();
-loadStatus();
 renderWatchlist();
 state.watchlist.forEach(seedInitialQuote);
 connectLiveFeed();
