@@ -1,6 +1,8 @@
 const state = {
   summary: null,
   activeTab: 'gainers',
+  watchlist: loadWatchlist(),
+  quotes: new Map(), // symbol -> { price, change, changePct }
 };
 
 const els = {
@@ -11,7 +13,31 @@ const els = {
   updatedAt: document.getElementById('updatedAt'),
   refreshBtn: document.getElementById('refreshBtn'),
   tabs: document.querySelectorAll('.tab'),
+  liveStatus: document.getElementById('liveStatus'),
+  watchlistForm: document.getElementById('watchlistForm'),
+  symbolInput: document.getElementById('symbolInput'),
+  searchResults: document.getElementById('searchResults'),
+  watchlistBody: document.getElementById('watchlistBody'),
 };
+
+const WATCHLIST_STORAGE_KEY = 'stokc.watchlist';
+
+function loadWatchlist() {
+  try {
+    const raw = localStorage.getItem(WATCHLIST_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveWatchlist() {
+  try {
+    localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(state.watchlist));
+  } catch {
+    // ignore storage failures (private browsing, quota, etc.)
+  }
+}
 
 const BADGE_CLASS = {
   'Easy to Borrow': 'badge-easy',
@@ -128,6 +154,169 @@ function escapeHtml(str) {
   }[c]));
 }
 
+// --- Live watchlist (WebSocket trade ticks) ---
+
+let ws = null;
+let wsReconnectTimer = null;
+
+function connectLiveFeed() {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${protocol}//${location.host}/ws`);
+
+  ws.addEventListener('open', () => {
+    state.watchlist.forEach((symbol) => ws.send(JSON.stringify({ type: 'subscribe', symbol })));
+  });
+
+  ws.addEventListener('message', (event) => {
+    let msg;
+    try {
+      msg = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (msg.type === 'tick') {
+      const prev = state.quotes.get(msg.symbol);
+      const basePrice = prev?.basePrice ?? msg.price;
+      state.quotes.set(msg.symbol, {
+        price: msg.price,
+        basePrice,
+        change: msg.price - basePrice,
+        changePct: basePrice ? ((msg.price - basePrice) / basePrice) * 100 : null,
+        flash: prev && msg.price > prev.price ? 'up' : prev && msg.price < prev.price ? 'down' : null,
+      });
+      renderWatchlist();
+    }
+  });
+
+  ws.addEventListener('close', () => {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = setTimeout(connectLiveFeed, 3000);
+  });
+}
+
+async function seedInitialQuote(symbol) {
+  try {
+    const res = await fetch(`/api/quote/${encodeURIComponent(symbol)}`);
+    if (!res.ok) return;
+    const q = await res.json();
+    state.quotes.set(symbol, {
+      price: q.price,
+      basePrice: q.prevClose ?? q.price,
+      change: q.change,
+      changePct: q.changePct,
+      flash: null,
+    });
+    renderWatchlist();
+  } catch {
+    // live feed may be unavailable; row will just show placeholders
+  }
+}
+
+function addToWatchlist(symbol) {
+  symbol = symbol.toUpperCase().trim();
+  if (!symbol || state.watchlist.includes(symbol)) return;
+  state.watchlist.push(symbol);
+  saveWatchlist();
+  seedInitialQuote(symbol);
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'subscribe', symbol }));
+  }
+  renderWatchlist();
+}
+
+function removeFromWatchlist(symbol) {
+  state.watchlist = state.watchlist.filter((s) => s !== symbol);
+  state.quotes.delete(symbol);
+  saveWatchlist();
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'unsubscribe', symbol }));
+  }
+  renderWatchlist();
+}
+
+function renderWatchlist() {
+  if (!state.watchlist.length) {
+    els.watchlistBody.innerHTML = `<tr><td colspan="5" class="empty">No symbols yet — add one above.</td></tr>`;
+    return;
+  }
+
+  els.watchlistBody.innerHTML = state.watchlist
+    .map((symbol) => {
+      const q = state.quotes.get(symbol);
+      const changeClass = q?.changePct == null ? '' : q.changePct >= 0 ? 'change-pos' : 'change-neg';
+      const flashClass = q?.flash === 'up' ? 'flash-up' : q?.flash === 'down' ? 'flash-down' : '';
+      return `
+      <tr>
+        <td class="ticker-cell">${escapeHtml(symbol)}</td>
+        <td class="num ${flashClass}">${q ? fmtMoney(q.price) : '—'}</td>
+        <td class="num ${changeClass}">${q?.change != null ? (q.change >= 0 ? '+' : '') + q.change.toFixed(2) : '—'}</td>
+        <td class="num ${changeClass}">${q?.changePct != null ? fmtPct(q.changePct) : '—'}</td>
+        <td><button class="remove-btn" data-symbol="${escapeHtml(symbol)}" title="Remove">✕</button></td>
+      </tr>`;
+    })
+    .join('');
+
+  els.watchlistBody.querySelectorAll('.remove-btn').forEach((btn) => {
+    btn.addEventListener('click', () => removeFromWatchlist(btn.dataset.symbol));
+  });
+}
+
+let searchDebounce = null;
+els.symbolInput.addEventListener('input', () => {
+  clearTimeout(searchDebounce);
+  const q = els.symbolInput.value.trim();
+  if (!q) {
+    els.searchResults.hidden = true;
+    return;
+  }
+  searchDebounce = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      if (!res.ok) {
+        els.searchResults.hidden = true;
+        return;
+      }
+      const { results } = await res.json();
+      if (!results.length) {
+        els.searchResults.hidden = true;
+        return;
+      }
+      els.searchResults.hidden = false;
+      els.searchResults.innerHTML = results
+        .map((r) => `<div class="search-result" data-symbol="${escapeHtml(r.symbol)}">${escapeHtml(r.symbol)} <span class="muted">${escapeHtml(r.name)}</span></div>`)
+        .join('');
+      els.searchResults.querySelectorAll('.search-result').forEach((el) => {
+        el.addEventListener('click', () => {
+          addToWatchlist(el.dataset.symbol);
+          els.symbolInput.value = '';
+          els.searchResults.hidden = true;
+        });
+      });
+    } catch {
+      els.searchResults.hidden = true;
+    }
+  }, 300);
+});
+
+els.watchlistForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  addToWatchlist(els.symbolInput.value);
+  els.symbolInput.value = '';
+  els.searchResults.hidden = true;
+});
+
+async function loadStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const { liveQuotes } = await res.json();
+    els.liveStatus.textContent = liveQuotes
+      ? 'live Finnhub quotes enabled'
+      : 'live quotes disabled — set FINNHUB_API_KEY to enable';
+  } catch {
+    els.liveStatus.textContent = 'unknown';
+  }
+}
+
 els.tabs.forEach((tab) => {
   tab.addEventListener('click', () => {
     els.tabs.forEach((t) => t.classList.remove('active'));
@@ -140,3 +329,7 @@ els.tabs.forEach((tab) => {
 els.refreshBtn.addEventListener('click', loadSummary);
 
 loadSummary();
+loadStatus();
+renderWatchlist();
+state.watchlist.forEach(seedInitialQuote);
+connectLiveFeed();

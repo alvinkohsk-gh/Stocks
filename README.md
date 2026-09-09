@@ -1,20 +1,45 @@
 # Stokc
 
-Daily dashboard of Finviz's biggest stock gainers and losers, paired with a
-short-sale lending summary modeled on Interactive Brokers' borrow
-availability metrics (fee rate, shares available, borrow status).
+Stock monitoring dashboard: a live watchlist streamed over WebSocket from
+Finnhub's real-time trade feed, plus a daily scan of Finviz's biggest
+gainers/losers (with prices refreshed from the same live quote API) paired
+with a short-sale lending summary modeled on Interactive Brokers' borrow
+availability metrics.
 
 ## What it does
 
-- Scrapes [Finviz](https://finviz.com)'s public screener for the day's Top
-  Gainers and Top Losers (`ta_topgainers` / `ta_toplosers` views).
+- **Live watchlist**: search for any US-listed symbol, add it to your
+  watchlist, and see its price tick in real time as trades happen —
+  streamed server-side from [Finnhub](https://finnhub.io)'s WebSocket trade
+  feed and pushed to the browser over its own WebSocket. No polling delay.
+- Scrapes [Finviz](https://finviz.com)'s public screener to discover the
+  day's Top Gainers and Top Losers (`ta_topgainers` / `ta_toplosers`
+  views), then overlays live Finnhub quotes on top so the price/% change
+  shown is accurate to the last live trade rather than Finviz's own cache.
 - For each ticker, attaches a short-lending summary: borrow status (Easy /
   Hard / Very Hard to Borrow / Not Available), annualized fee rate, and
   shares available.
 - Surfaces a "Squeeze Watch" list: big movers that are also very hard or
   impossible to borrow — the combination that tends to precede short
   squeezes.
-- Caches Finviz responses for 5 minutes to avoid hammering the site.
+- Caches the Finviz-derived ticker list for 5 minutes (that list barely
+  changes minute to minute); live prices are never cached.
+
+## Live market data (Finnhub)
+
+Set `FINNHUB_API_KEY` to enable real-time quotes, symbol search, and the
+live watchlist feed. Get a free key at https://finnhub.io/register (free
+tier covers US equities real-time quotes + trade WebSocket, with rate
+limits).
+
+```bash
+export FINNHUB_API_KEY=your_key_here
+npm start
+```
+
+Without a key, the app still runs: mover tickers/prices fall back to
+Finviz's own screener data, and the watchlist/search endpoints return a 503
+explaining that live quotes aren't configured.
 
 ## Important: the lending data is simulated
 
@@ -61,6 +86,15 @@ User-Agents, or switching to an official data provider.
   mover list enriched with lending data plus summary stats.
 - `GET /api/summary` — both gainers and losers in one response, as used by
   the dashboard.
+- `GET /api/quote/:symbol` — live Finnhub quote for any symbol (503 if
+  `FINNHUB_API_KEY` isn't set).
+- `GET /api/search?q=` — symbol/company search for the watchlist's add box.
+- `GET /api/status` — whether live quotes are enabled.
+- `WS /ws` — subscribe to live trade ticks: send
+  `{"type":"subscribe","symbol":"AAPL"}`, receive
+  `{"type":"tick","symbol":"AAPL","price":...,"volume":...,"ts":...}`
+  messages as trades happen. Send `{"type":"unsubscribe","symbol":"AAPL"}`
+  to stop.
 
 ## Deployment
 
