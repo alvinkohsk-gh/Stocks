@@ -153,62 +153,42 @@ function escapeHtml(str) {
   }[c]));
 }
 
-// --- Live watchlist (server polls Yahoo Finance, pushes over WebSocket) ---
+// --- Live watchlist (browser polls a serverless quote endpoint) ---
+//
+// Vercel-friendly: no persistent connection needed, just a per-symbol
+// interval that fetches /api/quote/:symbol and re-renders on change.
 
-let ws = null;
-let wsReconnectTimer = null;
+const POLL_INTERVAL_MS = 5000;
+const pollers = new Map(); // symbol -> interval handle
 
-function connectLiveFeed() {
-  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${protocol}//${location.host}/ws`);
-
-  ws.addEventListener('open', () => {
-    state.watchlist.forEach((symbol) => ws.send(JSON.stringify({ type: 'subscribe', symbol })));
-  });
-
-  ws.addEventListener('message', (event) => {
-    let msg;
-    try {
-      msg = JSON.parse(event.data);
-    } catch {
-      return;
-    }
-    if (msg.type === 'tick') {
-      const prev = state.quotes.get(msg.symbol);
-      const basePrice = prev?.basePrice ?? msg.price;
-      state.quotes.set(msg.symbol, {
-        price: msg.price,
-        basePrice,
-        change: msg.price - basePrice,
-        changePct: basePrice ? ((msg.price - basePrice) / basePrice) * 100 : null,
-        flash: prev && msg.price > prev.price ? 'up' : prev && msg.price < prev.price ? 'down' : null,
-      });
-      renderWatchlist();
-    }
-  });
-
-  ws.addEventListener('close', () => {
-    clearTimeout(wsReconnectTimer);
-    wsReconnectTimer = setTimeout(connectLiveFeed, 3000);
-  });
-}
-
-async function seedInitialQuote(symbol) {
+async function pollQuote(symbol) {
   try {
     const res = await fetch(`/api/quote/${encodeURIComponent(symbol)}`);
     if (!res.ok) return;
     const q = await res.json();
+    const prev = state.quotes.get(symbol);
     state.quotes.set(symbol, {
       price: q.price,
-      basePrice: q.prevClose ?? q.price,
       change: q.change,
       changePct: q.changePct,
-      flash: null,
+      flash: prev && q.price > prev.price ? 'up' : prev && q.price < prev.price ? 'down' : null,
     });
     renderWatchlist();
   } catch {
-    // live feed may be unavailable; row will just show placeholders
+    // transient network error; next poll will retry
   }
+}
+
+function startPolling(symbol) {
+  if (pollers.has(symbol)) return;
+  pollQuote(symbol);
+  pollers.set(symbol, setInterval(() => pollQuote(symbol), POLL_INTERVAL_MS));
+}
+
+function stopPolling(symbol) {
+  const handle = pollers.get(symbol);
+  if (handle) clearInterval(handle);
+  pollers.delete(symbol);
 }
 
 function addToWatchlist(symbol) {
@@ -216,10 +196,7 @@ function addToWatchlist(symbol) {
   if (!symbol || state.watchlist.includes(symbol)) return;
   state.watchlist.push(symbol);
   saveWatchlist();
-  seedInitialQuote(symbol);
-  if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'subscribe', symbol }));
-  }
+  startPolling(symbol);
   renderWatchlist();
 }
 
@@ -227,9 +204,7 @@ function removeFromWatchlist(symbol) {
   state.watchlist = state.watchlist.filter((s) => s !== symbol);
   state.quotes.delete(symbol);
   saveWatchlist();
-  if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'unsubscribe', symbol }));
-  }
+  stopPolling(symbol);
   renderWatchlist();
 }
 
@@ -317,5 +292,4 @@ els.refreshBtn.addEventListener('click', loadSummary);
 
 loadSummary();
 renderWatchlist();
-state.watchlist.forEach(seedInitialQuote);
-connectLiveFeed();
+state.watchlist.forEach(startPolling);

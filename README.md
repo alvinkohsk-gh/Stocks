@@ -1,17 +1,17 @@
 # Stokc
 
-Stock monitoring dashboard: a live watchlist that updates every few seconds
-over WebSocket, plus a scan of today's biggest gainers/losers, all powered
-by Yahoo Finance's public (no account, no API key) endpoints — paired with
-a short-sale lending summary modeled on Interactive Brokers' borrow
+Stock monitoring dashboard: a live watchlist that refreshes every few
+seconds, plus a scan of today's biggest gainers/losers, all powered by
+Yahoo Finance's public (no account, no API key) endpoints — paired with a
+short-sale lending summary modeled on Interactive Brokers' borrow
 availability metrics.
 
 ## What it does
 
 - **Live watchlist**: search for any symbol, add it to your watchlist, and
-  watch its price update in real time. The server polls Yahoo Finance every
-  ~5 seconds per watched symbol and pushes updates to the browser over its
-  own WebSocket (`/ws`) — the browser never polls itself.
+  watch its price update automatically. The browser polls
+  `/api/quote/:symbol` every ~5 seconds per watched symbol — a plain
+  serverless-friendly REST call, no persistent connection required.
 - Pulls the day's Top Gainers and Top Losers from Yahoo Finance's
   `day_gainers` / `day_losers` predefined screener — the same data backing
   finance.yahoo.com's own movers pages.
@@ -21,8 +21,8 @@ availability metrics.
 - Surfaces a "Squeeze Watch" list: big movers that are also very hard or
   impossible to borrow — the combination that tends to precede short
   squeezes.
-- Caches the movers list for 30 seconds to avoid hammering the endpoint on
-  rapid dashboard refreshes; watchlist quotes are polled fresh continuously.
+- Caches the movers list briefly (30s) per server instance to avoid
+  hammering the endpoint on rapid dashboard refreshes.
 
 ## Live market data (no account needed)
 
@@ -42,7 +42,7 @@ rate-limit or block an IP that polls too aggressively. If you need
 guaranteed real-time data or hit reliability problems, swap `src/yahoo.js`
 for a registered provider (Finnhub, Alpha Vantage, Polygon.io, IEX Cloud,
 etc. all offer free tiers with an API key) — the rest of the app (caching,
-the watchlist WebSocket relay, the UI) doesn't need to change, only the
+the watchlist polling, the UI) doesn't need to change, only the
 `getQuote` / `getMovers` / `symbolLookup` implementations.
 
 ## Important: the lending data is simulated
@@ -76,20 +76,26 @@ Then open http://localhost:3000.
   mover list enriched with lending data plus summary stats.
 - `GET /api/summary` — both gainers and losers in one response, as used by
   the dashboard.
-- `GET /api/quote/:symbol` — live quote for any symbol.
+- `GET /api/quote/:symbol` — live quote for any symbol, polled by the
+  watchlist every ~5 seconds while a symbol is added.
 - `GET /api/search?q=` — symbol/company search for the watchlist's add box.
-- `WS /ws` — subscribe to live price updates: send
-  `{"type":"subscribe","symbol":"AAPL"}`, receive
-  `{"type":"tick","symbol":"AAPL","price":...,"change":...,"changePct":...,"ts":...}`
-  messages roughly every 5 seconds while subscribed. Send
-  `{"type":"unsubscribe","symbol":"AAPL"}` to stop.
 
 ## Deployment
 
-This is a plain Node/Express app (not a static site) because it needs
-server-side fetch access to Yahoo Finance and a long-lived process for the
-WebSocket relay. Deploy it anywhere that runs a long-lived Node process
-(Render, Railway, Fly.io, a VPS, etc.) with:
+The app is split into a static frontend (`public/`) and small serverless
+functions (`api/*.js`), so it deploys cleanly to Vercel with zero config:
+
+```bash
+vercel deploy       # or connect the GitHub repo in the Vercel dashboard
+```
+
+`vercel.json` points Vercel at `public/` for static assets; everything
+under `api/` is auto-detected as a Serverless Function. No environment
+variables are required since the Yahoo Finance endpoints are keyless.
+
+You can also run it as a plain Node/Express process (`server.js` serves the
+exact same routes) on any host that runs a long-lived process — Render,
+Railway, Fly.io, a VPS, etc.:
 
 ```bash
 npm install
