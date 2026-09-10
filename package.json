@@ -1,7 +1,7 @@
 {
   "name": "stokc",
   "version": "1.0.0",
-  "description": "Daily Finviz gainers/losers scan with a simulated Interactive Brokers short-lending availability summary",
+  "description": "Live stock movers and watchlist powered by Yahoo Finance's keyless public API, paired with a simulated Interactive Brokers short-lending availability summary",
   "type": "module",
   "main": "server.js",
   "scripts": {
@@ -11,7 +11,6 @@
     "node": ">=18"
   },
   "dependencies": {
-    "cheerio": "^1.0.0",
     "express": "^4.19.2"
   }
 }

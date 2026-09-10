@@ -1,20 +1,49 @@
 # Stokc
 
-Daily dashboard of Finviz's biggest stock gainers and losers, paired with a
+Stock monitoring dashboard: a live watchlist that refreshes every few
+seconds, plus a scan of today's biggest gainers/losers, all powered by
+Yahoo Finance's public (no account, no API key) endpoints — paired with a
 short-sale lending summary modeled on Interactive Brokers' borrow
-availability metrics (fee rate, shares available, borrow status).
+availability metrics.
 
 ## What it does
 
-- Scrapes [Finviz](https://finviz.com)'s public screener for the day's Top
-  Gainers and Top Losers (`ta_topgainers` / `ta_toplosers` views).
+- **Live watchlist**: search for any symbol, add it to your watchlist, and
+  watch its price update automatically. The browser polls
+  `/api/quote/:symbol` every ~5 seconds per watched symbol — a plain
+  serverless-friendly REST call, no persistent connection required.
+- Pulls the day's Top Gainers and Top Losers from Yahoo Finance's
+  `day_gainers` / `day_losers` predefined screener — the same data backing
+  finance.yahoo.com's own movers pages.
 - For each ticker, attaches a short-lending summary: borrow status (Easy /
   Hard / Very Hard to Borrow / Not Available), annualized fee rate, and
   shares available.
 - Surfaces a "Squeeze Watch" list: big movers that are also very hard or
   impossible to borrow — the combination that tends to precede short
   squeezes.
-- Caches Finviz responses for 5 minutes to avoid hammering the site.
+- Caches the movers list briefly (30s) per server instance to avoid
+  hammering the endpoint on rapid dashboard refreshes.
+
+## Live market data (no account needed)
+
+This app uses Yahoo Finance's unofficial public endpoints
+(`query1.finance.yahoo.com`), which require no signup, no API key, and no
+account — just run it:
+
+```bash
+npm install
+npm start
+```
+
+**Caveats of going keyless:** these endpoints aren't officially documented
+or guaranteed stable, prices can lag the real tape by anywhere from a few
+seconds to ~15–20 minutes depending on the exchange/feed, and Yahoo can
+rate-limit or block an IP that polls too aggressively. If you need
+guaranteed real-time data or hit reliability problems, swap `src/yahoo.js`
+for a registered provider (Finnhub, Alpha Vantage, Polygon.io, IEX Cloud,
+etc. all offer free tiers with an API key) — the rest of the app (caching,
+the watchlist polling, the UI) doesn't need to change, only the
+`getQuote` / `getMovers` / `symbolLookup` implementations.
 
 ## Important: the lending data is simulated
 
@@ -41,32 +70,32 @@ npm start
 
 Then open http://localhost:3000.
 
-## Notes on the Finviz scraper
-
-Finviz periodically changes its screener page's CSS classes. `src/finviz.js`
-avoids depending on class names: it finds the results table by locating the
-header row that contains both a "Ticker" and "Price" column label, then
-reads each row positionally. If Finviz overhauls its markup enough that no
-row contains those labels, the scraper will throw a clear error rather than
-silently returning garbage — check `src/finviz.js` first if `/api/movers/*`
-starts failing.
-
-Scraping is done with a normal desktop User-Agent header. If Finviz starts
-blocking requests (403s), consider adding request delays, rotating
-User-Agents, or switching to an official data provider.
-
 ## API
 
 - `GET /api/movers/:type` — `type` is `gainers` or `losers`. Returns the
   mover list enriched with lending data plus summary stats.
 - `GET /api/summary` — both gainers and losers in one response, as used by
   the dashboard.
+- `GET /api/quote/:symbol` — live quote for any symbol, polled by the
+  watchlist every ~5 seconds while a symbol is added.
+- `GET /api/search?q=` — symbol/company search for the watchlist's add box.
 
 ## Deployment
 
-This is a plain Node/Express app (not a static site) because it needs
-server-side fetch access to Finviz. Deploy it anywhere that runs a
-long-lived Node process (Render, Railway, Fly.io, a VPS, etc.) with:
+The app is split into a static frontend (`public/`) and small serverless
+functions (`api/*.js`), so it deploys cleanly to Vercel with zero config:
+
+```bash
+vercel deploy       # or connect the GitHub repo in the Vercel dashboard
+```
+
+`vercel.json` points Vercel at `public/` for static assets; everything
+under `api/` is auto-detected as a Serverless Function. No environment
+variables are required since the Yahoo Finance endpoints are keyless.
+
+You can also run it as a plain Node/Express process (`server.js` serves the
+exact same routes) on any host that runs a long-lived process — Render,
+Railway, Fly.io, a VPS, etc.:
 
 ```bash
 npm install

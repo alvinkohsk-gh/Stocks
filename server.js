@@ -1,50 +1,12 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { fetchMovers } from './src/finviz.js';
-import { getMockLending } from './src/lending.js';
+import { getQuote, symbolLookup } from './src/yahoo.js';
+import { getMoversCached, summarize } from './src/movers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const cache = new Map();
-
-async function getMoversCached(type) {
-  const cached = cache.get(type);
-  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
-    return cached.data;
-  }
-  const data = await fetchMovers(type);
-  cache.set(type, { data, ts: Date.now() });
-  return data;
-}
-
-function withLending(movers) {
-  return movers.map((m) => ({ ...m, lending: getMockLending(m.ticker) }));
-}
-
-function summarize(movers) {
-  const enriched = withLending(movers);
-  const fees = enriched.filter((m) => m.lending.feeRatePct != null).map((m) => m.lending.feeRatePct);
-  const avgFeeRatePct = fees.length ? +(fees.reduce((s, f) => s + f, 0) / fees.length).toFixed(2) : null;
-  const hardToBorrowCount = enriched.filter((m) =>
-    ['Hard to Borrow', 'Very Hard to Borrow', 'Not Available'].includes(m.lending.category)
-  ).length;
-  const squeezeCandidates = enriched
-    .filter((m) => ['Very Hard to Borrow', 'Not Available'].includes(m.lending.category))
-    .sort((a, b) => Math.abs(b.changePct ?? 0) - Math.abs(a.changePct ?? 0))
-    .slice(0, 5);
-
-  return {
-    count: enriched.length,
-    hardToBorrowCount,
-    avgFeeRatePct,
-    squeezeCandidates,
-    results: enriched,
-  };
-}
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
@@ -58,16 +20,13 @@ app.get('/api/movers/:type', async (req, res) => {
     const movers = await getMoversCached(type);
     res.json({ type, updatedAt: new Date().toISOString(), ...summarize(movers) });
   } catch (err) {
-    res.status(502).json({ error: 'Failed to fetch data from Finviz', detail: err.message });
+    res.status(502).json({ error: 'Failed to fetch data from Yahoo Finance', detail: err.message });
   }
 });
 
 app.get('/api/summary', async (req, res) => {
   try {
-    const [gainers, losers] = await Promise.all([
-      getMoversCached('gainers'),
-      getMoversCached('losers'),
-    ]);
+    const [gainers, losers] = await Promise.all([getMoversCached('gainers'), getMoversCached('losers')]);
     res.json({
       updatedAt: new Date().toISOString(),
       gainers: summarize(gainers),
@@ -75,6 +34,27 @@ app.get('/api/summary', async (req, res) => {
     });
   } catch (err) {
     res.status(502).json({ error: 'Failed to build summary', detail: err.message });
+  }
+});
+
+// Live quote for an arbitrary symbol, polled by the browser's watchlist.
+app.get('/api/quote/:symbol', async (req, res) => {
+  try {
+    const quote = await getQuote(req.params.symbol.toUpperCase());
+    if (!quote) return res.status(404).json({ error: `No quote found for ${req.params.symbol}` });
+    res.json(quote);
+  } catch (err) {
+    res.status(502).json({ error: 'Failed to fetch live quote', detail: err.message });
+  }
+});
+
+app.get('/api/search', async (req, res) => {
+  const q = req.query.q;
+  if (!q) return res.status(400).json({ error: 'q query param is required' });
+  try {
+    res.json({ results: await symbolLookup(q) });
+  } catch (err) {
+    res.status(502).json({ error: 'Symbol search failed', detail: err.message });
   }
 });
 
