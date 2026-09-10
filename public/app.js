@@ -1,4 +1,4 @@
-const WATCHLIST_STORAGE_KEY = 'stokc.watchlist';
+const WATCHLIST_STORAGE_KEY = 'stock.watchlist';
 
 // Some browsers (private/incognito windows, strict cookie/storage settings)
 // throw on localStorage access instead of just failing quietly. Detect that
@@ -7,7 +7,7 @@ const WATCHLIST_STORAGE_KEY = 'stokc.watchlist';
 // calls loadWatchlist() immediately.
 function checkStorageAvailable() {
   try {
-    const testKey = '__stokc_storage_test__';
+    const testKey = '__stock_storage_test__';
     localStorage.setItem(testKey, '1');
     localStorage.removeItem(testKey);
     return true;

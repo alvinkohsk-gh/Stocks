@@ -59,5 +59,5 @@ app.get('/api/search', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`stokc running on http://localhost:${PORT}`);
+  console.log(`stock running on http://localhost:${PORT}`);
 });

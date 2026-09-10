@@ -1,4 +1,4 @@
-# Stokc
+# Stock
 
 Stock monitoring dashboard: a live watchlist that refreshes every few
 seconds, plus a scan of today's biggest gainers/losers, all powered by
