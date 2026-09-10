@@ -22,6 +22,22 @@ async function yahooGet(url) {
   return res.json();
 }
 
+// Downsamples the intraday close-price series from a chart response into a
+// small point list suitable for an inline sparkline, dropping the null gaps
+// Yahoo leaves for non-trading minutes (pre-market, lunch on thin symbols).
+function extractSparkline(result, maxPoints = 40) {
+  const closes = result?.indicators?.quote?.[0]?.close;
+  if (!Array.isArray(closes)) return [];
+  const points = closes.filter((c) => c != null);
+  if (points.length <= maxPoints) return points;
+  const step = points.length / maxPoints;
+  const sampled = [];
+  for (let i = 0; i < maxPoints; i++) {
+    sampled.push(points[Math.floor(i * step)]);
+  }
+  return sampled;
+}
+
 // Live-ish quote (delayed a few seconds to a couple minutes depending on
 // exchange) built from the same chart data Yahoo's own site polls.
 export async function getQuote(symbol) {
@@ -36,6 +52,18 @@ export async function getQuote(symbol) {
   const change = prevClose != null ? price - prevClose : null;
   const changePct = prevClose ? (change / prevClose) * 100 : null;
 
+  // Yahoo includes these only while the market is actually in that session;
+  // marketState is one of PRE, REGULAR, POST(POSTPOST), CLOSED.
+  const marketState = meta.marketState ?? null;
+  const extendedPrice =
+    marketState === 'PRE' ? meta.preMarketPrice ?? null : marketState === 'POST' ? meta.postMarketPrice ?? null : null;
+  const extendedChangePct =
+    marketState === 'PRE'
+      ? meta.preMarketChangePercent ?? null
+      : marketState === 'POST'
+        ? meta.postMarketChangePercent ?? null
+        : null;
+
   return {
     symbol: meta.symbol || symbol,
     price,
@@ -46,6 +74,10 @@ export async function getQuote(symbol) {
     open: meta.regularMarketOpen ?? null,
     prevClose,
     volume: meta.regularMarketVolume ?? null,
+    marketState,
+    extendedPrice,
+    extendedChangePct,
+    sparkline: extractSparkline(result),
     asOf: new Date((meta.regularMarketTime || Date.now() / 1000) * 1000).toISOString(),
     source: 'yahoo-live',
   };

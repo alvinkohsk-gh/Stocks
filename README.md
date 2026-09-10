@@ -11,7 +11,11 @@ availability metrics.
 - **Live watchlist**: search for any symbol, add it to your watchlist, and
   watch its price update automatically. The browser polls
   `/api/quote/:symbol` every ~5 seconds per watched symbol — a plain
-  serverless-friendly REST call, no persistent connection required.
+  serverless-friendly REST call, no persistent connection required. Each
+  row also shows an intraday sparkline, volume, and a pre-/after-market
+  price with a PRE/AH badge when the market is closed.
+- Both the watchlist and movers tables are sortable — click any numeric
+  column header to sort, click again to reverse.
 - Pulls the day's Top Gainers and Top Losers from Yahoo Finance's
   `day_gainers` / `day_losers` predefined screener — the same data backing
   finance.yahoo.com's own movers pages.

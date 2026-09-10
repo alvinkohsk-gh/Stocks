@@ -44,15 +44,17 @@
         <table id="watchlistTable">
           <thead>
             <tr>
-              <th>Symbol</th>
-              <th class="num">Last</th>
-              <th class="num">Change</th>
-              <th class="num">Change %</th>
+              <th class="sortable" data-sort="symbol">Symbol</th>
+              <th>Chart</th>
+              <th class="num sortable" data-sort="price">Last</th>
+              <th class="num sortable" data-sort="change">Change</th>
+              <th class="num sortable" data-sort="changePct">Change %</th>
+              <th class="num sortable" data-sort="volume">Volume</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="watchlistBody">
-            <tr><td colspan="5" class="empty">No symbols yet — add one above.</td></tr>
+            <tr><td colspan="7" class="empty">No symbols yet — add one above.</td></tr>
           </tbody>
         </table>
       </div>
@@ -76,15 +78,15 @@
         <table id="moversTable">
           <thead>
             <tr>
-              <th>Ticker</th>
+              <th class="sortable" data-sort="ticker">Ticker</th>
               <th>Company</th>
               <th>Sector</th>
-              <th class="num">Price</th>
-              <th class="num">Change %</th>
-              <th class="num">Volume</th>
+              <th class="num sortable" data-sort="price">Price</th>
+              <th class="num sortable" data-sort="changePct">Change %</th>
+              <th class="num sortable" data-sort="volume">Volume</th>
               <th>Borrow Status</th>
-              <th class="num">Fee Rate</th>
-              <th class="num">Shares Available</th>
+              <th class="num sortable" data-sort="feeRatePct">Fee Rate</th>
+              <th class="num sortable" data-sort="availableShares">Shares Available</th>
             </tr>
           </thead>
           <tbody id="moversBody">
