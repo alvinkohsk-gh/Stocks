@@ -41,7 +41,9 @@ const state = {
   summary: null,
   activeTab: 'gainers',
   watchlist: loadWatchlist(),
-  quotes: new Map(), // symbol -> { price, change, changePct }
+  quotes: new Map(), // symbol -> { price, change, changePct, volume, marketState, extendedPrice, extendedChangePct, sparkline }
+  moversSort: { key: null, dir: 1 },
+  watchlistSort: { key: null, dir: 1 },
 };
 
 const els = {
@@ -80,6 +82,70 @@ function fmtPct(n) {
 function fmtMoney(n) {
   if (n === null || n === undefined) return '—';
   return `$${n.toFixed(2)}`;
+}
+
+// Generic click-to-sort: rows are re-sorted by `getValue(row, key)`, nulls
+// always sink to the bottom regardless of direction. Clicking the same
+// column again flips direction; clicking a new column starts ascending.
+function sortRows(rows, sortState, getValue) {
+  if (!sortState.key) return rows;
+  const { key, dir } = sortState;
+  return [...rows].sort((a, b) => {
+    const va = getValue(a, key);
+    const vb = getValue(b, key);
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    if (typeof va === 'string' || typeof vb === 'string') {
+      return dir * String(va).localeCompare(String(vb));
+    }
+    return dir * (va - vb);
+  });
+}
+
+function wireSortableHeaders(table, sortState, onSort) {
+  table.querySelectorAll('th.sortable').forEach((th) => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      if (sortState.key === key) {
+        sortState.dir *= -1;
+      } else {
+        sortState.key = key;
+        sortState.dir = 1;
+      }
+      table.querySelectorAll('th.sortable').forEach((h) => h.classList.remove('sort-asc', 'sort-desc'));
+      th.classList.add(sortState.dir === 1 ? 'sort-asc' : 'sort-desc');
+      onSort();
+    });
+  });
+}
+
+// Tiny inline SVG line chart from a handful of intraday closing prices.
+function renderSparkline(points) {
+  if (!points || points.length < 2) return '<span class="muted">—</span>';
+  const w = 70;
+  const h = 24;
+  const pad = 2;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const step = (w - pad * 2) / (points.length - 1);
+  const coords = points
+    .map((p, i) => {
+      const x = pad + i * step;
+      const y = pad + (1 - (p - min) / range) * (h - pad * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+  const trendClass = points[points.length - 1] >= points[0] ? 'spark-up' : 'spark-down';
+  return `<svg class="sparkline ${trendClass}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${coords}" fill="none" stroke="currentColor" stroke-width="1.5" /></svg>`;
+}
+
+const MARKET_STATE_LABEL = { PRE: 'PRE', POST: 'AH' };
+
+function marketStateBadge(marketState) {
+  const label = MARKET_STATE_LABEL[marketState];
+  return label ? `<span class="market-badge">${label}</span>` : '';
 }
 
 async function loadSummary() {
@@ -137,6 +203,15 @@ function statCard(label, value) {
   return `<div class="stat-card"><div class="label">${escapeHtml(label)}</div><div class="value">${escapeHtml(String(value))}</div></div>`;
 }
 
+const MOVERS_SORT_GETTERS = {
+  ticker: (m) => m.ticker,
+  price: (m) => m.price,
+  changePct: (m) => m.changePct,
+  volume: (m) => m.volume,
+  feeRatePct: (m) => m.lending.feeRatePct,
+  availableShares: (m) => m.lending.availableShares,
+};
+
 function renderTable() {
   const data = state.summary?.[state.activeTab];
   if (!data || !data.results.length) {
@@ -144,7 +219,9 @@ function renderTable() {
     return;
   }
 
-  els.moversBody.innerHTML = data.results
+  const rows = sortRows(data.results, state.moversSort, (m, key) => MOVERS_SORT_GETTERS[key](m));
+
+  els.moversBody.innerHTML = rows
     .map((m) => {
       const changeClass = (m.changePct ?? 0) >= 0 ? 'change-pos' : 'change-neg';
       const badgeClass = BADGE_CLASS[m.lending.category] || 'badge-none';
@@ -192,6 +269,11 @@ async function pollQuote(symbol) {
       price: q.price,
       change: q.change,
       changePct: q.changePct,
+      volume: q.volume,
+      marketState: q.marketState,
+      extendedPrice: q.extendedPrice,
+      extendedChangePct: q.extendedChangePct,
+      sparkline: q.sparkline,
       flash: prev && q.price > prev.price ? 'up' : prev && q.price < prev.price ? 'down' : null,
     });
     renderWatchlist();
@@ -229,23 +311,41 @@ function removeFromWatchlist(symbol) {
   renderWatchlist();
 }
 
+const WATCHLIST_SORT_GETTERS = {
+  symbol: (symbol) => symbol,
+  price: (symbol) => state.quotes.get(symbol)?.price,
+  change: (symbol) => state.quotes.get(symbol)?.change,
+  changePct: (symbol) => state.quotes.get(symbol)?.changePct,
+  volume: (symbol) => state.quotes.get(symbol)?.volume,
+};
+
 function renderWatchlist() {
   if (!state.watchlist.length) {
-    els.watchlistBody.innerHTML = `<tr><td colspan="5" class="empty">No symbols yet — add one above.</td></tr>`;
+    els.watchlistBody.innerHTML = `<tr><td colspan="7" class="empty">No symbols yet — add one above.</td></tr>`;
     return;
   }
 
-  els.watchlistBody.innerHTML = state.watchlist
+  const symbols = sortRows(state.watchlist, state.watchlistSort, (symbol, key) => WATCHLIST_SORT_GETTERS[key](symbol));
+
+  els.watchlistBody.innerHTML = symbols
     .map((symbol) => {
       const q = state.quotes.get(symbol);
       const changeClass = q?.changePct == null ? '' : q.changePct >= 0 ? 'change-pos' : 'change-neg';
       const flashClass = q?.flash === 'up' ? 'flash-up' : q?.flash === 'down' ? 'flash-down' : '';
+      const extended =
+        q?.extendedPrice != null
+          ? `<div class="extended-price">${marketStateBadge(q.marketState)} ${fmtMoney(q.extendedPrice)} ${
+              q.extendedChangePct != null ? fmtPct(q.extendedChangePct) : ''
+            }</div>`
+          : '';
       return `
       <tr>
         <td class="ticker-cell">${escapeHtml(symbol)}</td>
-        <td class="num ${flashClass}">${q ? fmtMoney(q.price) : '—'}</td>
+        <td>${renderSparkline(q?.sparkline)}</td>
+        <td class="num ${flashClass}">${q ? fmtMoney(q.price) : '—'}${extended}</td>
         <td class="num ${changeClass}">${q?.change != null ? (q.change >= 0 ? '+' : '') + q.change.toFixed(2) : '—'}</td>
         <td class="num ${changeClass}">${q?.changePct != null ? fmtPct(q.changePct) : '—'}</td>
+        <td class="num">${q?.volume != null ? fmtNum(q.volume) : '—'}</td>
         <td><button class="remove-btn" data-symbol="${escapeHtml(symbol)}" title="Remove">✕</button></td>
       </tr>`;
     })
@@ -310,6 +410,9 @@ els.tabs.forEach((tab) => {
 });
 
 els.refreshBtn.addEventListener('click', loadSummary);
+
+wireSortableHeaders(document.getElementById('moversTable'), state.moversSort, renderTable);
+wireSortableHeaders(document.getElementById('watchlistTable'), state.watchlistSort, renderWatchlist);
 
 loadSummary();
 els.storageWarning.hidden = storageAvailable;

@@ -285,6 +285,16 @@ thead th {
 
 th.num, td.num { text-align: right; }
 
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+th.sortable:hover { color: var(--text); }
+
+th.sortable.sort-asc::after { content: ' \25B2'; font-size: 0.7em; }
+th.sortable.sort-desc::after { content: ' \25BC'; font-size: 0.7em; }
+
 tbody td {
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
@@ -295,6 +305,31 @@ tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--panel-alt); }
 
 .ticker-cell { font-weight: 700; }
+
+.sparkline { display: block; }
+.spark-up { color: var(--green); }
+.spark-down { color: var(--red); }
+
+.market-badge {
+  display: inline-block;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.extended-price {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
 
 .change-pos { color: var(--green); font-weight: 600; }
 .change-neg { color: var(--red); font-weight: 600; }
