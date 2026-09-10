@@ -1,31 +1,10 @@
-const state = {
-  summary: null,
-  activeTab: 'gainers',
-  watchlist: loadWatchlist(),
-  quotes: new Map(), // symbol -> { price, change, changePct }
-};
-
-const els = {
-  summaryGrid: document.getElementById('summaryGrid'),
-  squeezeSection: document.getElementById('squeezeSection'),
-  squeezeCards: document.getElementById('squeezeCards'),
-  moversBody: document.getElementById('moversBody'),
-  updatedAt: document.getElementById('updatedAt'),
-  refreshBtn: document.getElementById('refreshBtn'),
-  tabs: document.querySelectorAll('.tab'),
-  watchlistForm: document.getElementById('watchlistForm'),
-  symbolInput: document.getElementById('symbolInput'),
-  searchResults: document.getElementById('searchResults'),
-  watchlistBody: document.getElementById('watchlistBody'),
-  storageWarning: document.getElementById('storageWarning'),
-};
-
 const WATCHLIST_STORAGE_KEY = 'stokc.watchlist';
 
 // Some browsers (private/incognito windows, strict cookie/storage settings)
 // throw on localStorage access instead of just failing quietly. Detect that
 // up front so we can warn instead of silently losing the watchlist on the
-// next page load.
+// next page load. This must run before `state` below, since state.watchlist
+// calls loadWatchlist() immediately.
 function checkStorageAvailable() {
   try {
     const testKey = '__stokc_storage_test__';
@@ -57,6 +36,28 @@ function saveWatchlist() {
     // ignore storage failures (quota exceeded, etc.)
   }
 }
+
+const state = {
+  summary: null,
+  activeTab: 'gainers',
+  watchlist: loadWatchlist(),
+  quotes: new Map(), // symbol -> { price, change, changePct }
+};
+
+const els = {
+  summaryGrid: document.getElementById('summaryGrid'),
+  squeezeSection: document.getElementById('squeezeSection'),
+  squeezeCards: document.getElementById('squeezeCards'),
+  moversBody: document.getElementById('moversBody'),
+  updatedAt: document.getElementById('updatedAt'),
+  refreshBtn: document.getElementById('refreshBtn'),
+  tabs: document.querySelectorAll('.tab'),
+  watchlistForm: document.getElementById('watchlistForm'),
+  symbolInput: document.getElementById('symbolInput'),
+  searchResults: document.getElementById('searchResults'),
+  watchlistBody: document.getElementById('watchlistBody'),
+  storageWarning: document.getElementById('storageWarning'),
+};
 
 const BADGE_CLASS = {
   'Easy to Borrow': 'badge-easy',
