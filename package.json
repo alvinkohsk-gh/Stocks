@@ -1,5 +1,5 @@
 {
-  "name": "stokc",
+  "name": "stock",
   "version": "1.0.0",
   "description": "Live stock movers and watchlist powered by Yahoo Finance's keyless public API, paired with a simulated Interactive Brokers short-lending availability summary",
   "type": "module",
